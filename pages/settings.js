@@ -6,12 +6,9 @@ import {
   Target,
   Moon,
   Sun,
-  BookOpen,
-  ListChecks,
   Database,
   ShieldCheck,
   Info,
-  ArrowRight,
   Save,
   Smartphone,
   Globe,
@@ -229,7 +226,7 @@ export default function SettingsPage() {
         </div>
       </SectionCard>
 
-      <SectionCard icon={Target} title="দৈনিক লক্ষ্য" subtitle="এই মানগুলো ড্যাশবোর্ড ও মডিউলের হিসাবে ব্যবহার হয়">
+      <SectionCard icon={Target} title="দৈনিক লক্ষ্য" subtitle="রিপোর্টে তুলনা ও অগ্রগতির হিসাবে ব্যবহৃত হয়">
         <div className="form-grid">
           <Field label="ঘুমের লক্ষ্য (ঘণ্টা)">
             <NumberInput value={settings.sleepTargetHrs} step="0.5" min="0" onChange={(e) => setTarget("sleepTargetHrs", e.target.value)} />
@@ -250,9 +247,6 @@ export default function SettingsPage() {
               min="0"
               onChange={(e) => setTarget("exerciseTargetMin", e.target.value)}
             />
-          </Field>
-          <Field label="অভ্যাসের লক্ষ্য (%)">
-            <NumberInput value={settings.habitTargetPct} step="5" min="0" max="100" onChange={(e) => setTarget("habitTargetPct", e.target.value)} />
           </Field>
         </div>
         <div className="divider" />
@@ -421,37 +415,6 @@ export default function SettingsPage() {
         </div>
       </SectionCard>
 
-      <SectionCard icon={ListChecks} title="মডিউল ব্যবস্থাপনা" subtitle="বিষয় ও অভ্যাস এখান থেকে পরিচালনা করুন">
-        <div className="stack tight">
-          <Link href="/study" className="row" style={{ justifyContent: "space-between", gap: 8, padding: "8px 0" }}>
-            <span className="row" style={{ gap: 10 }}>
-              <span className="event-icon" style={{ "--tone": CHART.green, width: 32, height: 32, borderRadius: 10 }}>
-                <BookOpen size={15} />
-              </span>
-              <span>
-                <span className="small strong" style={{ display: "block" }}>বিষয় ও অধ্যায়</span>
-                <span className="tiny muted">{state.subjects.length}টি বিষয় · {state.chapters.length}টি অধ্যায়</span>
-              </span>
-            </span>
-            <ArrowRight size={15} color="var(--text-3)" />
-          </Link>
-
-          <Link href="/habits" className="row" style={{ justifyContent: "space-between", gap: 8, padding: "8px 0" }}>
-            <span className="row" style={{ gap: 10 }}>
-              <span className="event-icon" style={{ "--tone": CHART.violet, width: 32, height: 32, borderRadius: 10 }}>
-                <ListChecks size={15} />
-              </span>
-              <span>
-                <span className="small strong" style={{ display: "block" }}>অভ্যাস</span>
-                <span className="tiny muted">{state.habits.length}টি অভ্যাস</span>
-              </span>
-            </span>
-            <ArrowRight size={15} color="var(--text-3)" />
-          </Link>
-
-          </div>
-      </SectionCard>
-
       <SectionCard icon={Database} title="ডেটা" subtitle="সব তথ্য ব্রাউজারের localStorage-এ সংরক্ষিত">
         <div className="kpi-grid" style={{ marginBottom: 12 }}>
           <div className="kpi-card" style={{ "--kpi-tone": CHART.cyan }}>
@@ -459,16 +422,16 @@ export default function SettingsPage() {
             <div className="kpi-value">{totalEvents}</div>
           </div>
           <div className="kpi-card" style={{ "--kpi-tone": CHART.green }}>
-            <div className="kpi-label">পড়াশোনার সেশন</div>
-            <div className="kpi-value">{state.study.length}</div>
+            <div className="kpi-label">ঘুমের এন্ট্রি</div>
+            <div className="kpi-value">{state.sleep.length}</div>
           </div>
           <div className="kpi-card" style={{ "--kpi-tone": CHART.violet }}>
-            <div className="kpi-label">অভ্যাসের দিন</div>
-            <div className="kpi-value">{Object.keys(state.habitLogs).length}</div>
+            <div className="kpi-label">ব্যায়ামের এন্ট্রি</div>
+            <div className="kpi-value">{state.exercise.length}</div>
           </div>
           <div className="kpi-card" style={{ "--kpi-tone": CHART.amber }}>
-            <div className="kpi-label">লক্ষ্য</div>
-            <div className="kpi-value">{state.goals.length}</div>
+            <div className="kpi-label">ওজনের মাপ</div>
+            <div className="kpi-value">{state.weights.length}</div>
           </div>
         </div>
 

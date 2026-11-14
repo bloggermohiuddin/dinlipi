@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import {
   CalendarDays,
   Moon,
@@ -13,12 +12,8 @@ import {
   Plus,
   Pencil,
   Trash2,
-  ListChecks,
   Clock,
-  CheckCircle2,
-  Circle,
   Info,
-  ArrowRight,
 } from "lucide-react";
 import {
   PageHeader,
@@ -29,8 +24,6 @@ import {
   EmptyState,
   DayNav,
   Sheet,
-  YesNo,
-  StatusBanner,
 } from "../components/Ui";
 import {
   SleepForm,
@@ -43,9 +36,8 @@ import {
   WeightForm,
 } from "../components/forms";
 import { useStore } from "../store/useStore";
-import { daySummary, dayEvents, eventMinutes, fmtNum, fmtDuration, sleepHoursOf } from "../lib/calc";
+import { daySummary, dayEvents, eventMinutes, fmtNum, sleepHoursOf } from "../lib/calc";
 import { todayISO, lastNDates, formatDateShort, relativeDayLabel, weekdayBangla } from "../lib/dateUtils";
-import { YES, NO } from "../lib/defaultData";
 
 const META = {
   sleep: { label: "ঘুম", icon: Moon, tone: "#a78bfa", Form: SleepForm },
@@ -89,8 +81,6 @@ export default function DailyPage() {
   const dates = useMemo(() => lastNDates(30), []);
   const summary = useMemo(() => daySummary(state, date), [state, date]);
   const events = useMemo(() => dayEvents(state, date), [state, date]);
-  const dayMap = state.habitLogs[date] || {};
-  const routineMap = state.routineLogs[date] || {};
 
   const grouped = useMemo(() => {
     const out = {};
@@ -120,7 +110,6 @@ export default function DailyPage() {
     }
   }
 
-  const habitAnswered = summary.habitAnswered;
   const Meta = editor ? META[editor.collection] : null;
   const Form = Meta ? Meta.Form : null;
 
@@ -151,10 +140,6 @@ export default function DailyPage() {
           </div>
           <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
             <Badge tone={events.length ? "good" : "mute"}>{events.length}টি এন্ট্রি</Badge>
-            <Badge tone={habitAnswered ? "info" : "mute"}>{habitAnswered ? `অভ্যাস ${Math.round((summary.habitPct || 0) * 100)}%` : "অভ্যাস বাকি"}</Badge>
-            <Badge tone={summary.routineDone ? "good" : "mute"}>
-              রুটিন {summary.routineDone}/{summary.routineTotal}
-            </Badge>
           </div>
         </div>
 
@@ -196,8 +181,7 @@ export default function DailyPage() {
         </div>
       </SectionCard>
 
-      <div className="grid-2" style={{ marginBottom: 14 }}>
-        <SectionCard
+      <SectionCard
           icon={Clock}
           title="দিনের সময়রেখা"
           subtitle={events.length ? `${events.length}টি এন্ট্রি` : "কোনো এন্ট্রি নেই"}
@@ -239,70 +223,6 @@ export default function DailyPage() {
             </div>
           )}
         </SectionCard>
-
-        <div>
-          <SectionCard
-            icon={ListChecks}
-            title="অভ্যাস"
-            subtitle={`${summary.habitDone}/${summary.habitTotal} সম্পন্ন · ${habitAnswered}টির উত্তর দেওয়া হয়েছে`}
-            right={
-              <Link href="/habits" className="btn btn-ghost btn-sm">
-                বিস্তারিত
-              </Link>
-            }
-          >
-            <div style={{ maxHeight: 330, overflowY: "auto", margin: "-6px 0" }}>
-              {state.habits.map((h) => (
-                <div key={h.id} className="row" style={{ gap: 10, padding: "7px 0", borderBottom: "1px solid var(--border)" }}>
-                  <span className="small" style={{ flex: 1, minWidth: 0 }}>
-                    {h.name}
-                  </span>
-                  <div style={{ width: 118, flex: "0 0 auto" }}>
-                    <YesNo value={dayMap[h.id] || ""} onChange={(v) => state.setHabitLog(date, h.id, v)} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </SectionCard>
-
-          <SectionCard
-            icon={Clock}
-            title="রুটিন"
-            subtitle={`${summary.routineDone}/${summary.routineTotal} সম্পন্ন`}
-            right={
-              <Link href="/routine" className="btn btn-ghost btn-sm">
-                বিস্তারিত
-              </Link>
-            }
-          >
-            <div style={{ maxHeight: 300, overflowY: "auto", margin: "-6px 0" }}>
-              {state.routine.map((r) => {
-                const done = routineMap[r.id] === YES;
-                return (
-                  <div key={r.id} className="row" style={{ gap: 8, padding: "7px 0", borderBottom: "1px solid var(--border)" }}>
-                    {done ? <CheckCircle2 size={15} color="var(--accent)" /> : <Circle size={15} color="var(--text-3)" />}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div className="small" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {r.activity}
-                      </div>
-                      <div className="tiny muted">
-                        {r.startTime || "—"} – {r.endTime || "—"}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      className={`btn btn-sm ${done ? "btn-ghost" : "btn-primary"}`}
-                      onClick={() => state.setRoutineLog(date, r.id, done ? "" : YES)}
-                    >
-                      {done ? "সম্পন্ন" : "চিহ্নিত"}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </SectionCard>
-        </div>
-      </div>
 
       {ADD_ORDER.filter((k) => grouped[k].length).map((key) => {
         const m = META[key];

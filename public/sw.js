@@ -1,5 +1,5 @@
-﻿const CACHE_NAME = "health-tracker-cache-v8";
-const APP_SHELL = ["/", "/manifest.json"];
+﻿const CACHE_NAME = "health-tracker-cache-v9";
+const APP_SHELL = ["/", "/daily/", "/reports/", "/manifest.json"];
 
 // Reminder settings are shared with the page through Cache Storage,
 // because a service worker cannot read localStorage.

@@ -2,7 +2,7 @@
   "name": "দিনলিপি — স্বাস্থ্য, পড়াশোনা ও দৈনন্দিন জীবন",
   "short_name": "দিনলিপি",
   "description": "দিনলিপি — অফলাইন স্বাস্থ্য, পড়াশোনা ও দৈনন্দিন জীবনের ইভেন্ট-ভিত্তিক ট্র্যাকার। বাংলা ইন্টারফেস, JSON ব্যাকআপ।",
-  "start_url": "/",
+  "start_url": "/daily/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",

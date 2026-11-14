@@ -21,7 +21,6 @@ import {
   Droplets,
   Briefcase,
   HeartPulse,
-  ListChecks,
   Scale,
   Download,
   Upload,
@@ -29,7 +28,6 @@ import {
   RotateCcw,
   CalendarRange,
   CalendarDays,
-  Target,
   Info,
   FileJson,
   ShieldAlert,
@@ -40,18 +38,14 @@ import {
   KpiCard,
   Badge,
   ChartCard,
-  ProgressMeta,
   Tabs,
   Field,
   TextArea,
   StatusBanner,
-  EmptyState,
 } from "../components/Ui";
 import { useStore } from "../store/useStore";
 import {
   daySummary,
-  habitSummary,
-  goalProgress,
   weightRangeChange,
   fmtNum,
   fmtDuration,
@@ -99,10 +93,7 @@ function summarize(state, start, end) {
   const workDays = days.filter((d) => d.workMin > 0);
   const waterDays = days.filter((d) => d.waterGlasses !== null);
   const headacheEntries = state.health.filter((h) => h.date >= start && h.date <= end && h.kind !== "অন্যান্য");
-  const habit = habitSummary(state.habitLogs, state.habits, start, end);
   const weight = weightRangeChange(state.weights, start, end);
-  const routineDone = days.reduce((a, d) => a + d.routineDone, 0);
-  const routineTotal = days.reduce((a, d) => a + d.routineTotal, 0);
 
   return {
     dates: list,
@@ -121,10 +112,7 @@ function summarize(state, start, end) {
     mealsTotal: days.reduce((a, d) => a + d.meals.length, 0),
     headacheEntries,
     headacheDays: new Set(headacheEntries.map((h) => h.date)).size,
-    habit,
     weight,
-    routineDone,
-    routineTotal,
   };
 }
 
@@ -146,20 +134,16 @@ export default function ReportsPage() {
     () =>
       data.dates.map((d) => {
         const s = daySummary(state, d);
-        const habitPct = s.habitPct;
         return {
           date: formatDateShort(d),
           ঘুম: s.sleepHrs === null ? null : Number(s.sleepHrs.toFixed(1)),
           পড়াশোনা: Math.round(s.studyMin),
           কাজ: Math.round(s.workMin),
-          অভ্যাস: habitPct === null ? null : Math.round(habitPct * 100),
           পানি: s.waterGlasses,
         };
       }),
     [state, data.dates]
   );
-
-  const goals = useMemo(() => state.goals.map((g) => ({ goal: g, progress: goalProgress(g, state) })), [state]);
 
   function delta(cur, prevValue, digits = 1, unit = "") {
     if (cur === null || prevValue === null || prevValue === undefined) return null;
@@ -263,13 +247,6 @@ export default function ReportsPage() {
         <KpiCard icon={Dumbbell} label="ব্যায়াম" value={fmtDuration(data.exerciseTotal)} tone={CHART.rose} hint={`${data.exerciseDays} দিন`} />
         <KpiCard icon={Briefcase} label="কাজ" value={fmtDuration(data.workTotal)} tone={CHART.blue} hint={`${data.workDays} দিন`} />
         <KpiCard icon={Droplets} label="গড় পানি" value={fmtNum(data.waterAvg, 1, "—")} unit="গ্লাস" tone={CHART.cyan} hint={`${data.waterDays} দিনের তথ্য`} />
-        <KpiCard
-          icon={ListChecks}
-          label="গড় অভ্যাস"
-          value={data.habit.avgPct === null ? "—" : `${Math.round(data.habit.avgPct * 100)}%`}
-          tone={CHART.amber}
-          hint={`${data.habit.answeredDayCount} দিনের তথ্য`}
-        />
         <KpiCard icon={HeartPulse} label="মাথাব্যথার দিন" value={data.headacheDays} unit="দিন" tone={CHART.rose} hint={`${data.headacheEntries.length}টি এন্ট্রি`} />
         <KpiCard
           icon={Scale}
@@ -288,12 +265,6 @@ export default function ReportsPage() {
               <span className="small muted">পড়াশোনা (দিনে গড়)</span>
               <span className="small strong numeric">
                 {fmtDuration(data.studyDays ? data.studyTotal / 7 : 0)} · লক্ষ্য {state.settings.studyTargetMin} মিনিট
-              </span>
-            </div>
-            <div className="row" style={{ justifyContent: "space-between" }}>
-              <span className="small muted">রুটিন সম্পন্ন</span>
-              <span className="small strong numeric">
-                {data.routineDone}/{data.routineTotal}
               </span>
             </div>
             <div className="row" style={{ justifyContent: "space-between" }}>
@@ -326,13 +297,6 @@ export default function ReportsPage() {
             <span className="small muted">মোট কাজ</span>
             <span className="small numeric">
               {fmtDuration(data.workTotal)} <span className="muted">/ {fmtDuration(prev.workTotal)}</span>
-            </span>
-          </div>
-          <div className="row" style={{ justifyContent: "space-between", gap: 8 }}>
-            <span className="small muted">গড় অভ্যাস</span>
-            <span className="small numeric">
-              {data.habit.avgPct === null ? "—" : `${Math.round(data.habit.avgPct * 100)}%`}{" "}
-              <span className="muted">/ {prev.habit.avgPct === null ? "—" : `${Math.round(prev.habit.avgPct * 100)}%`}</span>
             </span>
           </div>
           <div className="row" style={{ justifyContent: "space-between", gap: 8 }}>
@@ -369,44 +333,6 @@ export default function ReportsPage() {
           </ResponsiveContainer>
         </ChartCard>
       </div>
-
-      <SectionCard icon={ListChecks} title="অভ্যাসের ফলাফল" subtitle="শুধু উত্তর দেওয়া দিনের ভিত্তিতে">
-        {data.habit.perHabit.length === 0 ? (
-          <EmptyState icon={ListChecks} title="অভ্যাস নেই" hint="অভ্যাস মডিউল থেকে যোগ করুন।" />
-        ) : (
-          <div className="stack">
-            {data.habit.perHabit.map(({ habit, yes, answered, rate }) => (
-              <ProgressMeta
-                key={habit.id}
-                label={habit.name}
-                value={rate || 0}
-                right={rate === null ? "তথ্য নেই" : `${Math.round(rate * 100)}% (${yes}/${answered})`}
-              />
-            ))}
-          </div>
-        )}
-      </SectionCard>
-
-      <SectionCard icon={Target} title="লক্ষ্যের অগ্রগতি" subtitle="বর্তমান অবস্থা অনুযায়ী">
-        {goals.length === 0 ? (
-          <EmptyState icon={Target} title="কোনো লক্ষ্য নেই" hint="লক্ষ্য মডিউল থেকে নিজের লক্ষ্য তৈরি করুন।" />
-        ) : (
-          <div className="stack">
-            {goals.map(({ goal, progress }) => (
-              <ProgressMeta
-                key={goal.id}
-                label={goal.title || "লক্ষ্য"}
-                value={progress && progress.pct !== null ? progress.pct : 0}
-                right={
-                  progress && progress.current !== null
-                    ? `${Number(progress.current).toFixed(1)} / ${progress.target} ${progress.unit}`
-                    : "তথ্য নেই"
-                }
-              />
-            ))}
-          </div>
-        )}
-      </SectionCard>
 
       {mode === "week" ? (
         <SectionCard icon={CalendarRange} title="সাপ্তাহিক প্রতিচ্ছবি" subtitle="নিজের পর্যবেক্ষণ লিখে রাখুন">
@@ -473,7 +399,7 @@ export default function ReportsPage() {
 
       <div className="row tiny muted" style={{ justifyContent: "center", gap: 6, marginTop: 6 }}>
         <Info size={13} />
-        <span>রিপোর্টের সংখ্যা বদলাতে চাইলে সংশ্লিষ্ট মডিউলে এন্ট্রি যোগ বা সম্পাদনা করুন।</span>
+        <span>রিপোর্টের সংখ্যা বদলাতে চাইলে দৈনিক লগে এন্ট্রি যোগ বা সম্পাদনা করুন।</span>
       </div>
     </div>
   );
