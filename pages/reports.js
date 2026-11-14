@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ResponsiveContainer,
   BarChart,
@@ -22,26 +22,23 @@ import {
   Briefcase,
   HeartPulse,
   Scale,
-  Download,
-  Upload,
+  Utensils,
+  Target,
   Printer,
-  RotateCcw,
   CalendarRange,
   CalendarDays,
   Info,
-  FileJson,
-  ShieldAlert,
 } from "lucide-react";
 import {
   PageHeader,
   SectionCard,
   KpiCard,
-  Badge,
   ChartCard,
+  ProgressMeta,
   Tabs,
   Field,
   TextArea,
-  StatusBanner,
+  EmptyState,
 } from "../components/Ui";
 import { useStore } from "../store/useStore";
 import {
@@ -63,7 +60,6 @@ import {
   parseISODate,
 } from "../lib/dateUtils";
 import { CHART, tooltipStyle, axisTick, chartMargin } from "../lib/chart";
-import { exportJSON, parseImportedJSON, backupSummary } from "../lib/exportImport";
 
 function periodRange(mode, anchor) {
   if (mode === "week") {
@@ -118,11 +114,10 @@ function summarize(state, start, end) {
 
 export default function ReportsPage() {
   const state = useStore();
+  const settings = state.settings;
   const today = todayISO();
   const [mode, setMode] = useState("week");
   const [anchor, setAnchor] = useState(today);
-  const [importMsg, setImportMsg] = useState("");
-  const fileRef = useRef(null);
 
   const range = useMemo(() => periodRange(mode, anchor), [mode, anchor]);
   const prevRange = useMemo(() => periodRange(mode, range.prevAnchor), [mode, range.prevAnchor]);
@@ -140,6 +135,9 @@ export default function ReportsPage() {
           পড়াশোনা: Math.round(s.studyMin),
           কাজ: Math.round(s.workMin),
           পানি: s.waterGlasses,
+          ব্যায়াম: Math.round(s.exerciseMin),
+          খাবার: s.meals.length,
+          ওজন: s.weight === null ? null : Number(s.weight.toFixed(1)),
         };
       }),
     [state, data.dates]
@@ -153,37 +151,37 @@ export default function ReportsPage() {
 
   const title = mode === "week" ? `${formatDateShort(range.start)} – ${formatDateShort(range.end)}` : formatMonthYear(parseISODate(range.start).getFullYear(), parseISODate(range.start).getMonth());
 
-  function doExport() {
-    exportJSON(useStore.getState());
-    setImportMsg("ব্যাকআপ ডাউনলোড শুরু হয়েছে।");
-  }
+  const avgStudyPerDay = data.count ? data.studyTotal / data.count : 0;
+  const avgExercisePerDay = data.count ? data.exerciseTotal / data.count : 0;
 
-  function doImport(e) {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const parsed = parseImportedJSON(String(reader.result));
-        if (!window.confirm("এই ফাইলের তথ্য দিয়ে বর্তমান সব তথ্য প্রতিস্থাপিত হবে। চালিয়ে যাবেন?")) {
-          setImportMsg("ইমপোর্ট বাতিল হয়েছে।");
-          return;
-        }
-        useStore.getState().importState(parsed);
-        setImportMsg("ব্যাকআপ সফলভাবে ইমপোর্ট হয়েছে।");
-      } catch (err) {
-        setImportMsg(err.message || "ইমপোর্ট ব্যর্থ হয়েছে।");
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = "";
-  }
+  const targets = [
+    {
+      label: "ঘুম",
+      actual: data.avgSleep === null ? "তথ্য নেই" : `${fmtNum(data.avgSleep, 1)} ঘণ্টা`,
+      target: `${settings.sleepTargetHrs} ঘণ্টা`,
+      value: data.avgSleep === null || !settings.sleepTargetHrs ? 0 : data.avgSleep / settings.sleepTargetHrs,
+    },
+    {
+      label: "পড়াশোনা (দিনে গড়)",
+      actual: `${Math.round(avgStudyPerDay)} মিনিট`,
+      target: `${settings.studyTargetMin} মিনিট`,
+      value: settings.studyTargetMin ? avgStudyPerDay / settings.studyTargetMin : 0,
+    },
+    {
+      label: "পানি (দিনে গড়)",
+      actual: data.waterAvg === null ? "তথ্য নেই" : `${fmtNum(data.waterAvg, 1)} গ্লাস`,
+      target: `${settings.waterTarget} গ্লাস`,
+      value: data.waterAvg === null || !settings.waterTarget ? 0 : data.waterAvg / settings.waterTarget,
+    },
+    {
+      label: "ব্যায়াম (দিনে গড়)",
+      actual: `${Math.round(avgExercisePerDay)} মিনিট`,
+      target: `${settings.exerciseTargetMin} মিনিট`,
+      value: settings.exerciseTargetMin ? avgExercisePerDay / settings.exerciseTargetMin : 0,
+    },
+  ];
 
-  function doReset() {
-    if (!window.confirm("সব তথ্য মুছে শুরু থেকে যাবে। এটি ফেরানো যাবে না। নিশ্চিত?")) return;
-    useStore.getState().resetAll();
-    setImportMsg("সব তথ্য মুছে ফেলা হয়েছে।");
-  }
+  const hasWeightData = chartData.some((row) => row.ওজন !== null);
 
   return (
     <div>
@@ -257,6 +255,23 @@ export default function ReportsPage() {
           hint={data.weight ? `${data.weight.samples}টি মাপ` : "তুলনার তথ্য নেই"}
         />
       </div>
+
+      <SectionCard icon={Target} title="লক্ষ্য অনুযায়ী অগ্রগতি" subtitle="দৈনিক লক্ষ্যের সঙ্গে এই সময়ের গড় তুলনা">
+        <div className="stack">
+          {targets.map((t) => (
+            <ProgressMeta
+              key={t.label}
+              label={t.label}
+              value={t.value}
+              right={`${t.actual} / ${t.target}`}
+            />
+          ))}
+        </div>
+        <div className="divider" />
+        <div className="tiny muted" style={{ lineHeight: 1.7 }}>
+          লক্ষ্য সেটিংস থেকে বদলানো যায়। এখানে শুধু নিজের রেকর্ডের গড় ও লক্ষ্যের তুলনা দেখানো হয়, কোনো মূল্যায়ন নয়।
+        </div>
+      </SectionCard>
 
       {mode === "week" ? (
         <SectionCard icon={CalendarRange} title="সাপ্তাহিক সারসংক্ষেপ" subtitle={title}>
@@ -334,6 +349,77 @@ export default function ReportsPage() {
         </ChartCard>
       </div>
 
+      <div className="grid-2" style={{ marginBottom: 14 }}>
+        <ChartCard icon={Briefcase} title={`কাজ (${title})`} height={230}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={chartMargin}>
+              <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+              <XAxis dataKey="date" tick={axisTick} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+              <YAxis tick={axisTick} tickLine={false} axisLine={false} />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(96,165,250,0.06)" }} />
+              <ReferenceLine y={settings.workLimitMin} stroke={CHART.blue} strokeDasharray="4 4" />
+              <Bar dataKey="কাজ" fill={CHART.blue} radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+
+        <ChartCard icon={Droplets} title={`পানি (${title})`} height={230}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={chartMargin}>
+              <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+              <XAxis dataKey="date" tick={axisTick} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+              <YAxis tick={axisTick} tickLine={false} axisLine={false} />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(34,211,238,0.06)" }} />
+              <ReferenceLine y={settings.waterTarget} stroke={CHART.cyan} strokeDasharray="4 4" />
+              <Bar dataKey="পানি" fill={CHART.cyan} radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      </div>
+
+      <div className="grid-2" style={{ marginBottom: 14 }}>
+        <ChartCard icon={Dumbbell} title={`ব্যায়াম (${title})`} height={230}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={chartMargin}>
+              <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+              <XAxis dataKey="date" tick={axisTick} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+              <YAxis tick={axisTick} tickLine={false} axisLine={false} />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(251,113,133,0.06)" }} />
+              <ReferenceLine y={settings.exerciseTargetMin} stroke={CHART.rose} strokeDasharray="4 4" />
+              <Bar dataKey="ব্যায়াম" fill={CHART.rose} radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+
+        <ChartCard icon={Utensils} title={`খাবারের এন্ট্রি (${title})`} height={230}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={chartMargin}>
+              <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+              <XAxis dataKey="date" tick={axisTick} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+              <YAxis tick={axisTick} tickLine={false} axisLine={false} allowDecimals={false} />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(251,191,36,0.06)" }} />
+              <Bar dataKey="খাবার" fill={CHART.amber} radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      </div>
+
+      <ChartCard icon={Scale} title={`ওজনের ধারা (${title})`} height={230}>
+        {hasWeightData ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData} margin={chartMargin}>
+              <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} />
+              <XAxis dataKey="date" tick={axisTick} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+              <YAxis tick={axisTick} tickLine={false} axisLine={false} domain={["dataMin - 1", "dataMax + 1"]} />
+              <Tooltip contentStyle={tooltipStyle} cursor={{ stroke: CHART.grid }} />
+              <Line type="monotone" dataKey="ওজন" stroke={CHART.green} strokeWidth={2.2} dot={{ r: 2.5 }} connectNulls />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <EmptyState icon={Scale} title="এই সময়ে ওজনের মাপ নেই" hint="দৈনিক লগে ওজন যোগ করলে এখানে ধারা দেখা যাবে।" />
+        )}
+      </ChartCard>
+
       {mode === "week" ? (
         <SectionCard icon={CalendarRange} title="সাপ্তাহিক প্রতিচ্ছবি" subtitle="নিজের পর্যবেক্ষণ লিখে রাখুন">
           <div className="form-grid">
@@ -358,48 +444,9 @@ export default function ReportsPage() {
         </SectionCard>
       ) : null}
 
-      <SectionCard icon={FileJson} title="ডেটা ব্যাকআপ" subtitle="JSON ফাইলে সব তথ্য সংরক্ষণ ও ফিরিয়ে আনা">
-        <div className="row row-wrap" style={{ gap: 8 }}>
-          <button type="button" className="btn btn-primary" onClick={doExport}>
-            <Download size={15} /> JSON ডাউনলোড
-          </button>
-          <button type="button" className="btn btn-ghost" onClick={() => fileRef.current && fileRef.current.click()}>
-            <Upload size={15} /> JSON ইমপোর্ট
-          </button>
-          <input ref={fileRef} type="file" accept="application/json,.json" onChange={doImport} style={{ display: "none" }} />
-        </div>
-
-        <div className="divider" />
-
-        <div className="row row-wrap" style={{ gap: 8, marginBottom: 10 }}>
-          {backupSummary(state).map((row) => (
-            <Badge key={row.label} tone={row.count ? "info" : "mute"}>
-              {row.label} {row.count}
-            </Badge>
-          ))}
-        </div>
-
-        {importMsg ? (
-          <div className="tiny" style={{ color: "var(--accent)", fontWeight: 600, marginBottom: 10 }}>
-            {importMsg}
-          </div>
-        ) : null}
-
-        <StatusBanner tone="warn">
-          <ShieldAlert size={18} />
-          <span>ইমপোর্ট করলে বর্তমান সব তথ্য প্রতিস্থাপিত হবে। আগে ব্যাকআপ ডাউনলোড করে রাখুন।</span>
-        </StatusBanner>
-
-        <div className="divider" />
-
-        <button type="button" className="btn btn-danger" onClick={doReset}>
-          <RotateCcw size={15} /> সব তথ্য মুছে ফেলুন
-        </button>
-      </SectionCard>
-
       <div className="row tiny muted" style={{ justifyContent: "center", gap: 6, marginTop: 6 }}>
         <Info size={13} />
-        <span>রিপোর্টের সংখ্যা বদলাতে চাইলে দৈনিক লগে এন্ট্রি যোগ বা সম্পাদনা করুন।</span>
+        <span>রিপোর্টের সংখ্যা বদলাতে চাইলে দৈনিক লগে এন্ট্রি যোগ বা সম্পাদনা করুন। ব্যাকআপ ও ইমপোর্ট সেটিংসে আছে।</span>
       </div>
     </div>
   );

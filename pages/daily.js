@@ -18,7 +18,6 @@ import {
 import {
   PageHeader,
   SectionCard,
-  KpiCard,
   Badge,
   EventRow,
   EmptyState,
@@ -36,7 +35,7 @@ import {
   WeightForm,
 } from "../components/forms";
 import { useStore } from "../store/useStore";
-import { daySummary, dayEvents, eventMinutes, fmtNum, sleepHoursOf } from "../lib/calc";
+import { daySummary, dayEvents, eventMinutes, sleepHoursOf } from "../lib/calc";
 import { todayISO, lastNDates, formatDateShort, relativeDayLabel, weekdayBangla } from "../lib/dateUtils";
 
 const META = {
@@ -143,20 +142,13 @@ export default function DailyPage() {
           </div>
         </div>
 
-        <div className="kpi-grid" style={{ marginTop: 14 }}>
-          <KpiCard icon={Moon} label="ঘুম" value={fmtNum(summary.sleepHrs, 1, "—")} unit="ঘণ্টা" tone="#a78bfa" />
-          <KpiCard icon={Utensils} label="প্রধান খাবার" value={summary.meals.length ? `${summary.mainMealCount}/৩` : "—"} tone="#fbbf24" />
-          <KpiCard icon={Droplets} label="পানি" value={summary.waterGlasses ?? "—"} unit="গ্লাস" tone="#22d3ee" />
-          <KpiCard icon={BookOpen} label="পড়াশোনা" value={Math.round(summary.studyMin)} unit="মিনিট" tone="#34d399" />
-          <KpiCard icon={Briefcase} label="কাজ" value={Math.round(summary.workMin)} unit="মিনিট" tone="#60a5fa" />
-          <KpiCard icon={Dumbbell} label="ব্যায়াম" value={Math.round(summary.exerciseMin)} unit="মিনিট" tone="#fb7185" />
-          <KpiCard icon={Scale} label="ওজন" value={summary.weight === null ? "—" : summary.weight.toFixed(1)} unit="কেজি" tone="#34d399" />
-          <KpiCard
-            icon={HeartPulse}
-            label="মাথাব্যথা"
-            value={summary.headacheCount ? "হ্যাঁ" : summary.healthEntries.length ? "না" : "—"}
-            tone="#f472b6"
-          />
+        <div className="row row-wrap tiny muted" style={{ marginTop: 12, gap: "4px 14px" }}>
+          <span>ঘুম {summary.sleepHrs === null ? "—" : `${summary.sleepHrs.toFixed(1)} ঘণ্টা`}</span>
+          <span>পানি {summary.waterGlasses ?? "—"} গ্লাস</span>
+          <span>পড়া {Math.round(summary.studyMin)} মিনিট</span>
+          <span>কাজ {Math.round(summary.workMin)} মিনিট</span>
+          <span>ব্যায়াম {Math.round(summary.exerciseMin)} মিনিট</span>
+          <span>ওজন {summary.weight === null ? "—" : `${summary.weight.toFixed(1)} কেজি`}</span>
         </div>
       </div>
 
@@ -182,10 +174,10 @@ export default function DailyPage() {
       </SectionCard>
 
       <SectionCard
-          icon={Clock}
-          title="দিনের সময়রেখা"
-          subtitle={events.length ? `${events.length}টি এন্ট্রি` : "কোনো এন্ট্রি নেই"}
-        >
+        icon={Clock}
+        title="দিনের সময়রেখা"
+        subtitle={events.length ? `${events.length}টি এন্ট্রি` : "কোনো এন্ট্রি নেই"}
+      >
           {events.length === 0 ? (
             <EmptyState
               icon={Clock}

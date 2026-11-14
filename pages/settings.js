@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import {
   Settings as SettingsIcon,
   User,
@@ -18,6 +17,14 @@ import {
   AlertTriangle,
   Plus,
   Trash2,
+  GraduationCap,
+  Layers,
+  Download,
+  Upload,
+  RotateCcw,
+  RefreshCw,
+  FileJson,
+  ShieldAlert,
 } from "lucide-react";
 import {
   PageHeader,
@@ -26,11 +33,14 @@ import {
   TextInput,
   NumberInput,
   TimeInput,
+  Select,
+  YesNo,
   StatusBanner,
   Badge,
 } from "../components/Ui";
 import { useStore } from "../store/useStore";
 import { CHART } from "../lib/chart";
+import { exportJSON, parseImportedJSON, backupSummary } from "../lib/exportImport";
 import {
   notificationsSupported,
   reminderPermission,
@@ -54,6 +64,11 @@ export default function SettingsPage() {
   const [permission, setPermission] = useState("default");
   const [reminderMsg, setReminderMsg] = useState("");
   const [customInput, setCustomInput] = useState("");
+  const [newSubject, setNewSubject] = useState("");
+  const [chapterDraft, setChapterDraft] = useState({ subjectId: "", name: "", difficulty: "" });
+  const [importMsg, setImportMsg] = useState("");
+  const [reloading, setReloading] = useState(false);
+  const fileRef = useRef(null);
 
   const dark = settings.theme !== "light";
   const reminders = state.reminders || {
@@ -156,6 +171,87 @@ export default function SettingsPage() {
     state.updateSettings({ [key]: value === "" ? "" : Number(value) });
   }
 
+  function addSubject() {
+    const name = newSubject.trim();
+    if (!name) return;
+    state.addItem("subjects", { name });
+    setNewSubject("");
+  }
+
+  function removeSubject(subject) {
+    const used = state.study.some((e) => e.subjectId === subject.id);
+    if (used && !window.confirm("এই বিষয়ে পড়ার সেশন আছে। বিষয় মুছলে সেশনগুলো 'অজানা বিষয়' হিসেবে থাকবে। চালিয়ে যাবেন?")) {
+      return;
+    }
+    state.removeItem("subjects", subject.id);
+    state.chapters.filter((c) => c.subjectId === subject.id).forEach((c) => state.removeItem("chapters", c.id));
+  }
+
+  function addChapter() {
+    if (!chapterDraft.subjectId || !chapterDraft.name.trim()) return;
+    state.addItem("chapters", {
+      subjectId: chapterDraft.subjectId,
+      name: chapterDraft.name.trim(),
+      difficulty: chapterDraft.difficulty,
+      completed: "",
+    });
+    setChapterDraft({ subjectId: chapterDraft.subjectId, name: "", difficulty: "" });
+  }
+
+  function doExport() {
+    exportJSON(useStore.getState());
+    setImportMsg("ব্যাকআপ ডাউনলোড শুরু হয়েছে।");
+  }
+
+  function doImport(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = parseImportedJSON(String(reader.result));
+        if (!window.confirm("এই ফাইলের তথ্য দিয়ে বর্তমান সব তথ্য প্রতিস্থাপিত হবে। চালিয়ে যাবেন?")) {
+          setImportMsg("ইমপোর্ট বাতিল হয়েছে।");
+          return;
+        }
+        useStore.getState().importState(parsed);
+        setImportMsg("ব্যাকআপ সফলভাবে ইমপোর্ট হয়েছে।");
+      } catch (err) {
+        setImportMsg(err.message || "ইমপোর্ট ব্যর্থ হয়েছে।");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  }
+
+  function doReset() {
+    if (!window.confirm("সব তথ্য মুছে শুরু থেকে যাবে। এটি ফেরানো যাবে না। নিশ্চিত?")) return;
+    useStore.getState().resetAll();
+    setImportMsg("সব তথ্য মুছে ফেলা হয়েছে।");
+  }
+
+  async function reloadApp() {
+    setReloading(true);
+    try {
+      if ("serviceWorker" in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map((r) => r.update().catch(() => {})));
+      }
+      if ("caches" in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((key) => caches.delete(key).catch(() => {})));
+      }
+    } catch (err) {
+      // Cache update failed — a plain reload still picks up whatever the browser has.
+    }
+    window.location.reload();
+  }
+
+  const subjectName = (id) => {
+    const subject = state.subjects.find((s) => s.id === id);
+    return subject ? subject.name : "অজানা বিষয়";
+  };
+
   const totalEvents =
     state.sleep.length +
     state.meals.length +
@@ -253,6 +349,140 @@ export default function SettingsPage() {
         <div className="tiny muted" style={{ lineHeight: 1.7 }}>
           লক্ষ্য বদলালে পুরোনো রেকর্ডের সংখ্যা বদলায় না — শুধু নতুন হিসাবে তুলনা হয়।
         </div>
+      </SectionCard>
+
+      <SectionCard
+        icon={GraduationCap}
+        title="পড়াশোনার বিষয়"
+        subtitle="নিজের বিষয় যোগ, নাম বদল বা বাদ দিন — পড়ার সেশন যোগ করার সময় এগুলো বেছে নেওয়া যাবে"
+      >
+        {state.subjects.length === 0 ? (
+          <div className="tiny muted" style={{ lineHeight: 1.7 }}>
+            এখনো কোনো বিষয় নেই। নিচে নাম লিখে যোগ করুন।
+          </div>
+        ) : (
+          <div className="stack tight">
+            {state.subjects.map((subject) => {
+              const sessions = state.study.filter((e) => e.subjectId === subject.id).length;
+              const chapterCount = state.chapters.filter((c) => c.subjectId === subject.id).length;
+              return (
+                <div key={subject.id} className="row" style={{ gap: 8 }}>
+                  <TextInput
+                    value={subject.name}
+                    onChange={(e) => state.setItemField("subjects", subject.id, "name", e.target.value)}
+                    aria-label="বিষয়ের নাম"
+                  />
+                  <span className="tiny muted numeric" style={{ flex: "0 0 auto", textAlign: "right" }}>
+                    {sessions} সেশন · {chapterCount} অধ্যায়
+                  </span>
+                  <button
+                    type="button"
+                    className="btn-icon danger"
+                    style={{ width: 34, height: 34, minHeight: 34 }}
+                    onClick={() => removeSubject(subject)}
+                    aria-label="বিষয় মুছুন"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="row" style={{ gap: 8, marginTop: 12 }}>
+          <TextInput
+            placeholder="নতুন বিষয়ের নাম"
+            value={newSubject}
+            onChange={(e) => setNewSubject(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addSubject()}
+          />
+          <button type="button" className="btn btn-primary" onClick={addSubject} disabled={!newSubject.trim()}>
+            <Plus size={15} /> যোগ
+          </button>
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        icon={Layers}
+        title="অধ্যায়"
+        subtitle="প্রতিটি বিষয়ের অধ্যায় ও সম্পন্ন অবস্থা রাখুন"
+      >
+        <div className="form-grid">
+          <Field label="বিষয়">
+            <Select
+              value={chapterDraft.subjectId}
+              onChange={(e) => setChapterDraft((p) => ({ ...p, subjectId: e.target.value }))}
+              options={state.subjects.map((s) => ({ value: s.id, label: s.name }))}
+              placeholder="বিষয় বেছে নিন"
+            />
+          </Field>
+          <Field label="অধ্যায়ের নাম">
+            <TextInput
+              value={chapterDraft.name}
+              onChange={(e) => setChapterDraft((p) => ({ ...p, name: e.target.value }))}
+              placeholder="যেমন: প্রথম অধ্যায়"
+            />
+          </Field>
+          <Field label="কঠিনতা">
+            <Select
+              value={chapterDraft.difficulty}
+              onChange={(e) => setChapterDraft((p) => ({ ...p, difficulty: e.target.value }))}
+              options={["সহজ", "মাঝারি", "কঠিন"]}
+              placeholder="বেছে নিন"
+            />
+          </Field>
+        </div>
+        <button
+          type="button"
+          className="btn btn-primary"
+          style={{ marginTop: 12 }}
+          onClick={addChapter}
+          disabled={!chapterDraft.subjectId || !chapterDraft.name.trim()}
+        >
+          <Plus size={15} /> অধ্যায় যোগ
+        </button>
+
+        <div className="divider" />
+
+        {state.chapters.length === 0 ? (
+          <div className="tiny muted" style={{ lineHeight: 1.7 }}>
+            এখনো কোনো অধ্যায় নেই। উপরে বিষয় বেছে নাম লিখে যোগ করুন।
+          </div>
+        ) : (
+          <div className="stack tight">
+            {state.chapters.map((chapter) => (
+              <div
+                key={chapter.id}
+                className="row"
+                style={{ gap: 10, padding: "8px 0", borderBottom: "1px solid var(--border)" }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="small strong" style={{ overflowWrap: "anywhere" }}>{chapter.name}</div>
+                  <div className="tiny muted">
+                    {subjectName(chapter.subjectId)}
+                    {chapter.difficulty ? ` · ${chapter.difficulty}` : ""}
+                  </div>
+                </div>
+                <div style={{ width: 126, flex: "0 0 auto" }}>
+                  <YesNo
+                    value={chapter.completed}
+                    onChange={(v) => state.setItemField("chapters", chapter.id, "completed", v)}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="btn-icon danger"
+                  style={{ width: 30, height: 30, minHeight: 30 }}
+                  onClick={() => state.removeItem("chapters", chapter.id)}
+                  aria-label="অধ্যায় মুছুন"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </SectionCard>
 
       <SectionCard icon={dark ? Moon : Sun} title="চেহারা" subtitle="ডার্ক ও লাইট থিমের মধ্যে বদলান">
@@ -415,7 +645,7 @@ export default function SettingsPage() {
         </div>
       </SectionCard>
 
-      <SectionCard icon={Database} title="ডেটা" subtitle="সব তথ্য ব্রাউজারের localStorage-এ সংরক্ষিত">
+      <SectionCard icon={Database} title="ডেটা ও ব্যাকআপ" subtitle="সব তথ্য ব্রাউজারের localStorage-এ; JSON ফাইলে সংরক্ষণ ও ফিরিয়ে আনা">
         <div className="kpi-grid" style={{ marginBottom: 12 }}>
           <div className="kpi-card" style={{ "--kpi-tone": CHART.cyan }}>
             <div className="kpi-label">মোট এন্ট্রি</div>
@@ -435,19 +665,50 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <Link href="/reports" className="btn btn-ghost" style={{ width: "100%" }}>
-          <Database size={15} /> ব্যাকআপ, ইমপোর্ট ও রিপোর্ট
-        </Link>
+        <div className="row row-wrap" style={{ gap: 8 }}>
+          <button type="button" className="btn btn-primary" onClick={doExport}>
+            <Download size={15} /> JSON ডাউনলোড
+          </button>
+          <button type="button" className="btn btn-ghost" onClick={() => fileRef.current && fileRef.current.click()}>
+            <Upload size={15} /> JSON ইমপোর্ট
+          </button>
+          <input ref={fileRef} type="file" accept="application/json,.json" onChange={doImport} style={{ display: "none" }} />
+        </div>
+
+        <div className="row row-wrap" style={{ gap: 6, marginTop: 12 }}>
+          {backupSummary(state).map((row) => (
+            <Badge key={row.label} tone={row.count ? "info" : "mute"}>
+              {row.label} {row.count}
+            </Badge>
+          ))}
+        </div>
+
+        {importMsg ? (
+          <div className="tiny" style={{ color: "var(--accent)", fontWeight: 600, marginTop: 10 }}>
+            {importMsg}
+          </div>
+        ) : null}
 
         <div className="divider" />
 
         <StatusBanner>
           <ShieldCheck size={18} />
           <span>
-            কোনো সার্ভারে তথ্য যায় না। ব্যাকআপ নিতে চাইলে রিপোর্ট পেজ থেকে JSON ডাউনলোড করুন — ব্রাউজার ডেটা মুছলে
-            ব্যাকআপ ছাড়া তথ্য ফেরানো যাবে না।
+            কোনো সার্ভারে তথ্য যায় না। মাঝে মাঝে JSON ব্যাকআপ ডাউনলোড করে রাখুন — ব্রাউজার ডেটা মুছলে ব্যাকআপ
+            ছাড়া তথ্য ফেরানো যাবে না।
           </span>
         </StatusBanner>
+
+        <StatusBanner tone="warn">
+          <ShieldAlert size={18} />
+          <span>ইমপোর্ট করলে বর্তমান সব তথ্য প্রতিস্থাপিত হবে। আগে ব্যাকআপ ডাউনলোড করে রাখুন।</span>
+        </StatusBanner>
+
+        <div className="divider" />
+
+        <button type="button" className="btn btn-danger" onClick={doReset}>
+          <RotateCcw size={15} /> সব তথ্য মুছে ফেলুন
+        </button>
       </SectionCard>
 
       <SectionCard icon={Smartphone} title="অ্যাপ সম্পর্কে">
@@ -468,6 +729,17 @@ export default function SettingsPage() {
             <Globe size={13} />
             <span>ইন্টারনেট ছাড়াও খোলা যায়, কারণ সব ফাইল ডিভাইসে সংরক্ষিত থাকে।</span>
           </div>
+        </div>
+
+        <div className="divider" />
+
+        <div className="row row-wrap" style={{ gap: 8, alignItems: "center" }}>
+          <button type="button" className="btn btn-ghost" onClick={reloadApp} disabled={reloading}>
+            <RefreshCw size={15} /> {reloading ? "রিফ্রেশ হচ্ছে…" : "অ্যাপ রিফ্রেশ করুন"}
+          </button>
+          <span className="tiny muted" style={{ flex: "1 1 180px", lineHeight: 1.6 }}>
+            নতুন আপডেট এলে ক্যাশ পরিষ্কার করে অ্যাপ আবার লোড হবে। আপনার কোনো তথ্য মুছবে না।
+          </span>
         </div>
       </SectionCard>
 
